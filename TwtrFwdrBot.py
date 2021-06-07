@@ -1,5 +1,5 @@
 ###########################################################################
-# Twitter Forwarder Bot v0.01
+# Twitter Forwarder Bot v0.02
 # By Tom @ 3/6/21
 ########################################################################### 
 # Features: 
@@ -28,6 +28,7 @@
 import logging
 import tkinter as tk
 import tkinter.font as tkFont
+import tkinter.ttk as tkttk
 import time
 
 from os import write
@@ -40,6 +41,7 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, Callb
 from pytwitterscraper import TwitterScraper
 
 class App:
+    # EDIT PART START =======================================================
     # To Be Provided: 
     # Format should be: 
     # "##########:@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@"
@@ -51,20 +53,31 @@ class App:
     # please change to the twitter profile name you wanted to have Notified
     TwitterProfileName = "elonmusk"
 
+    # Dimension of Progress bar size
+    PBarLength = 100
+    # Sleep Time for each loop for getting tweets (in Seconds)
+    TotalSleep=10
+    # Split amount for progress bar to finish 
+    Split = 100
+
+    # EDIT PART END =========================================================
+
+
     MainText = object()
     TwtrTxt = object()
-    ProgBarVal = 0
     LastTenTwtrIDs = []
     OldLastTenTwtrIDs = []
     RegisteredChatId = []
     dispatcher = object()
     IsContinue = True
+    ProgVal = 0
+    ProgBar1 = object
 
     tw = TwitterScraper()
 
     def __init__(self, root):
         #setting title
-        root.title("undefined")
+        root.title("Bot")
         #setting window size
         width=300
         height=300
@@ -89,7 +102,10 @@ class App:
         GLabel_692["font"] = ft
         GLabel_692["fg"] = "#000000"
         GLabel_692["justify"] = "center"
-        GLabel_692.place(x=10,y=60,width=280,height=120)
+        GLabel_692.place(x=10,y=60,width=280,height=80)
+
+        self.ProgBar1 = tkttk.Progressbar(root, orient=tk.HORIZONTAL, length=self.PBarLength, mode='determinate', value=self.ProgVal)
+        self.ProgBar1.place(x=10,y=200,width=280,height=30)
 
         t = Thread(target =self.Twtr_Msg)
         t.start()
@@ -205,14 +221,24 @@ class App:
                     if i['id'] not in self.OldLastTenTwtrIDs:
                         print("new Tweet")
                         for j in self.RegisteredChatId:
-                            self.dispatcher.bot.sendMessage(chat_id=j, text=i['text'])
+                            TwtrContent = i['text'] + "\n" + "https://twitter.com/elonmusk/status/" + str(i['id'])
+                            self.dispatcher.bot.sendMessage(chat_id=j, text=TwtrContent)
 
                 print(self.LastTenTwtrIDs)
                 self.TwtrTxt.set("Twitter Latest Post ID: \n" + str(self.LastTenTwtrIDs[0]) +", \n"+str(self.LastTenTwtrIDs[1])+", \n"+str(self.LastTenTwtrIDs[2])+ "\nUpdated @ " + datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
 
                 self.OldLastTenTwtrIDs = self.LastTenTwtrIDs
                 self.SaveTwIds()
-                time.sleep(10)
+                # time.sleep(10)
+                self.ProgVal = 0
+
+                for i in range(self.Split):
+                    time.sleep(self.TotalSleep/self.Split)
+                    self.ProgVal += ((self.PBarLength / self.Split))
+                    self.ProgBar1['value'] = self.ProgVal
+                    root.update_idletasks()
+
+                # self.WaitingNextLoop()
             except:
                 self.IsContinue = False
 
@@ -222,5 +248,4 @@ if __name__ == '__main__':
     app.ReadChatIds()
     app.ReadTwIds()
     app.TgMain()
-    # app.Twtr_Msg()
     root.mainloop()
