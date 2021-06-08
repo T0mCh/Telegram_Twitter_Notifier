@@ -71,7 +71,7 @@ class App:
     dispatcher = object()
     IsContinue = True
     ProgVal = 0
-    ProgBar1 = object
+    ProgBar1 = object()
 
     tw = TwitterScraper()
 
