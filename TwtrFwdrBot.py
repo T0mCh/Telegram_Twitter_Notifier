@@ -1,6 +1,9 @@
 ###########################################################################
-# Twitter Forwarder Bot v0.02
-# By Tom @ 3/6/21
+# Twitter Forwarder Bot v0.03
+# By Tom @ 28/6/21
+########################################################################### 
+# Updated changes: 
+#  - Added support to read HK Observatory API, and send warning messages
 ########################################################################### 
 # Features: 
 # Give a Twitter profile name, and bot will periodically notify you 
@@ -30,6 +33,8 @@ import tkinter as tk
 import tkinter.font as tkFont
 import tkinter.ttk as tkttk
 import time
+import urllib.request as ur
+import json
 
 from os import write
 from typing import Text
@@ -68,6 +73,8 @@ class App:
     LastTenTwtrIDs = []
     OldLastTenTwtrIDs = []
     RegisteredChatId = []
+    OldWeatherData = None
+    NewWeatherData = None
     dispatcher = object()
     IsContinue = True
     ProgVal = 0
@@ -109,6 +116,9 @@ class App:
 
         t = Thread(target =self.Twtr_Msg)
         t.start()
+        
+        t2 = Thread(target = self.Weather_Msg)
+        t2.start()
 
     # Enable logging
     logging.basicConfig(
@@ -242,6 +252,35 @@ class App:
             except:
                 self.IsContinue = False
 
+    def Weather_Msg(self) -> None:
+        while self.IsContinue:
+            try:
+                url = "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=rhrread&lang=tc"
+                response = ur.urlopen(url)
+                self.NewWeatherData = json.loads(response.read())
+
+                OldWeatherMsg = ''
+                if self.OldWeatherData is not None:
+                    OldWeatherMsg = self.GetWeatherWarningMsg(self.OldWeatherData)
+                NewWeatherMsg = self.GetWeatherWarningMsg(self.NewWeatherData)
+                # Do Things to broadcast Warning Message
+
+                if OldWeatherMsg != NewWeatherMsg: 
+                    for k in self.RegisteredChatId:
+                        Content = NewWeatherMsg
+                        self.dispatcher.bot.sendMessage(chat_id=k, text=Content)
+                # Save current Message to OLD one
+                self.OldWeatherData = self.NewWeatherData
+                time.sleep(10)
+            except:
+                self.IsContinue = False
+
+    def GetWeatherWarningMsg(self, WeatherObj) -> None: 
+        Msg = ''
+        for j in WeatherObj['warningMessage']:
+            Msg += j + "\n"
+        return Msg                
+                
 if __name__ == '__main__':
     root = tk.Tk()
     app = App(root)
