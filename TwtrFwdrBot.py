@@ -116,7 +116,7 @@ class App:
 
         t = Thread(target =self.Twtr_Msg)
         t.start()
-        
+
         t2 = Thread(target = self.Weather_Msg)
         t2.start()
 
@@ -252,6 +252,20 @@ class App:
             except:
                 self.IsContinue = False
 
+    def SaveWeatherData(self, data) -> None: 
+        f = open("WeatherInfo.bin", "w")
+        f.write(data)
+        f.close()
+
+    def ReadWeatherData(self) -> None:
+        try:
+            f = open("WeatherInfo.bin", "r")
+            self.OldWeatherData = json.loads(f.readline())
+            f.close()
+        except:
+            print("Old Weather File not found")
+
+
     def Weather_Msg(self) -> None:
         while self.IsContinue:
             try:
@@ -271,20 +285,25 @@ class App:
                         self.dispatcher.bot.sendMessage(chat_id=k, text=Content)
                 # Save current Message to OLD one
                 self.OldWeatherData = self.NewWeatherData
-                time.sleep(10)
+                self.SaveWeatherData(json.dumps(self.OldWeatherData))
+                time.sleep(60)
             except:
                 self.IsContinue = False
 
     def GetWeatherWarningMsg(self, WeatherObj) -> None: 
-        Msg = ''
-        for j in WeatherObj['warningMessage']:
-            Msg += j + "\n"
-        return Msg                
-                
+        try: 
+            Msg = ''
+            for j in WeatherObj['warningMessage']:
+                Msg += j + "\n"
+            return Msg
+        except:
+            return ''
+
 if __name__ == '__main__':
     root = tk.Tk()
     app = App(root)
     app.ReadChatIds()
     app.ReadTwIds()
+    app.ReadWeatherData()
     app.TgMain()
     root.mainloop()
