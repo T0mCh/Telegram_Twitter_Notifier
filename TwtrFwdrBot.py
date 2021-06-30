@@ -1,29 +1,31 @@
 ###########################################################################
-# Twitter Forwarder Bot v0.03
-# By Tom @ 28/6/21
-########################################################################### 
-# Updated changes: 
+# Twitter Forwarder Bot v0.04
+# By Tom @ 30/6/21
+###########################################################################
+# Updated changes:
 #  - Added support to read HK Observatory API, and send warning messages
-########################################################################### 
-# Features: 
-# Give a Twitter profile name, and bot will periodically notify you 
+#  - Updated thread-related items to ensure everything will be stopped
+#    if application is being closed
+###########################################################################
+# Features:
+# Give a Twitter profile name, and bot will periodically notify you
 # for updated tweets
-# 
-# Bot Functions to be added (recommended): 
+#
+# Bot Functions to be added (recommended):
 # /start
 # /register
 # /help
-# 
-# Before running: 
+#
+# Before running:
 # please check code @ Line 36 & Line 40
 # to provide appropriate Telegram Bot Key, and also target profile name
-# 
+#
 # Required Modules
-# 
+#
 # python-telegram-bot 13.5
-# install: 
+# install:
 # pip install python-telegram-bot
-# 
+#
 # pytwitterscraper 1.3.5
 # install
 # pip install pytwitterscraper
@@ -70,15 +72,19 @@ class App:
 
     MainText = object()
     TwtrTxt = object()
+    WeatherTxt = object()
     LastTenTwtrIDs = []
     OldLastTenTwtrIDs = []
     RegisteredChatId = []
     OldWeatherData = None
     NewWeatherData = None
-    dispatcher = object()
+    updater = None
+    dispatcher = None
     IsContinue = True
     ProgVal = 0
     ProgBar1 = object()
+    t = None
+    t2 = None
 
     tw = TwitterScraper()
 
@@ -111,14 +117,25 @@ class App:
         GLabel_692["justify"] = "center"
         GLabel_692.place(x=10,y=60,width=280,height=80)
 
+        self.WeatherTxt = tk.StringVar()
+        self.WeatherTxt.set("Weather updated @ ")
+        GLabel_693=tk.Label(root, textvariable=self.WeatherTxt)
+        GLabel_693["font"] = ft
+        GLabel_693["fg"] = "#000000"
+        GLabel_693["justify"] = "center"
+        GLabel_693.place(x=10,y=250,width=280,height=80)
+
         self.ProgBar1 = tkttk.Progressbar(root, orient=tk.HORIZONTAL, length=self.PBarLength, mode='determinate', value=self.ProgVal)
         self.ProgBar1.place(x=10,y=200,width=280,height=30)
 
-        t = Thread(target =self.Twtr_Msg)
-        t.start()
+        exit_button = tk.Button(root, text="Exit", command=root.destroy)
+        exit_button.place(x=120,y=150,width=60,height=30)
 
-        t2 = Thread(target = self.Weather_Msg)
-        t2.start()
+        self.t = Thread(target =self.Twtr_Msg)
+        self.t.start()
+
+        self.t2 = Thread(target = self.Weather_Msg)
+        self.t2.start()
 
     # Enable logging
     logging.basicConfig(
@@ -192,11 +209,11 @@ class App:
     def TgMain(self) -> None:
         """Start the bot."""
         # Create the Updater and pass it your bot's token.
-        updater = Updater(self.TgToken)
+        self.updater = Updater(self.TgToken)
         self.MainText.set("Telegram Bot Status: Started")
 
         # Get the dispatcher to register handlers
-        self.dispatcher = updater.dispatcher
+        self.dispatcher = self.updater.dispatcher
 
         # on different commands - answer in Telegram
         self.dispatcher.add_handler(CommandHandler("start", self.start))
@@ -207,7 +224,7 @@ class App:
         self.dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, self.echo))
 
         # Start the Bot
-        updater.start_polling()
+        self.updater.start_polling()
 
         # Run the bot until you press Ctrl-C or the process receives SIGINT,
         # SIGTERM or SIGABRT. This should be used most of the time, since
@@ -226,7 +243,7 @@ class App:
                         self.LastTenTwtrIDs.sort(reverse=True)
                         if len(self.LastTenTwtrIDs)>10:
                             self.LastTenTwtrIDs.pop(len(self.LastTenTwtrIDs-1))
-                    print(i["text"])
+                    # print(i["text"])
 
                     if i['id'] not in self.OldLastTenTwtrIDs:
                         print("new Tweet")
@@ -235,7 +252,10 @@ class App:
                             self.dispatcher.bot.sendMessage(chat_id=j, text=TwtrContent)
 
                 print(self.LastTenTwtrIDs)
-                self.TwtrTxt.set("Twitter Latest Post ID: \n" + str(self.LastTenTwtrIDs[0]) +", \n"+str(self.LastTenTwtrIDs[1])+", \n"+str(self.LastTenTwtrIDs[2])+ "\nUpdated @ " + datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
+                try:
+                    self.TwtrTxt.set("Twitter Latest Post ID: \n" + str(self.LastTenTwtrIDs[0]) +", \n"+str(self.LastTenTwtrIDs[1])+", \n"+str(self.LastTenTwtrIDs[2])+ "\nUpdated @ " + datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
+                except:
+                    print('catch')
 
                 self.OldLastTenTwtrIDs = self.LastTenTwtrIDs
                 self.SaveTwIds()
@@ -251,8 +271,10 @@ class App:
                 # self.WaitingNextLoop()
             except:
                 self.IsContinue = False
+        print('[TWTR_TELEGRAM] loop quitted, begin quit')
+        self.updater.stop()
 
-    def SaveWeatherData(self, data) -> None: 
+    def SaveWeatherData(self, data) -> None:
         f = open("WeatherInfo.bin", "w")
         f.write(data)
         f.close()
@@ -279,19 +301,28 @@ class App:
                 NewWeatherMsg = self.GetWeatherWarningMsg(self.NewWeatherData)
                 # Do Things to broadcast Warning Message
 
-                if OldWeatherMsg != NewWeatherMsg: 
+                if OldWeatherMsg != NewWeatherMsg and NewWeatherMsg != '':
                     for k in self.RegisteredChatId:
                         Content = NewWeatherMsg
                         self.dispatcher.bot.sendMessage(chat_id=k, text=Content)
                 # Save current Message to OLD one
                 self.OldWeatherData = self.NewWeatherData
                 self.SaveWeatherData(json.dumps(self.OldWeatherData))
-                time.sleep(60)
+                try:
+                    self.WeatherTxt.set("Weather updated @ " + datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
+                except:
+                    print('catch')
+                
+                for i in range(10):
+                    if self.IsContinue: 
+                        time.sleep(1)
+
             except:
                 self.IsContinue = False
+        print('[WEATHER] loop quitted, begin quit')
 
-    def GetWeatherWarningMsg(self, WeatherObj) -> None: 
-        try: 
+    def GetWeatherWarningMsg(self, WeatherObj) -> None:
+        try:
             Msg = ''
             for j in WeatherObj['warningMessage']:
                 Msg += j + "\n"
@@ -299,8 +330,13 @@ class App:
         except:
             return ''
 
+def Close():
+    root.destroy()
+    
+
 if __name__ == '__main__':
     root = tk.Tk()
+    root.iconbitmap('icon.ico')
     app = App(root)
     app.ReadChatIds()
     app.ReadTwIds()
